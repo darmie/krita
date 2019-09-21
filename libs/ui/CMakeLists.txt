@@ -19,7 +19,6 @@ set(kritaui_LIB_SRCS
     canvas/kis_canvas2.cpp
     canvas/kis_canvas_updates_compressor.cpp
     canvas/kis_canvas_controller.cpp
-    canvas/kis_paintop_transformation_connector.cpp
     canvas/kis_display_color_converter.cpp
     canvas/kis_display_filter.cpp
     canvas/kis_exposure_gamma_correction_interface.cpp
@@ -190,6 +189,7 @@ set(kritaui_LIB_SRCS
     tool/kis_tool_freehand_helper.cpp
     tool/kis_tool_multihand_helper.cpp
     tool/kis_figure_painting_tool_helper.cpp
+    tool/KisAsyncronousStrokeUpdateHelper.cpp
     tool/kis_tool_paint.cc
     tool/kis_tool_shape.cc
     tool/kis_tool_ellipse_base.cpp
@@ -270,6 +270,7 @@ set(kritaui_LIB_SRCS
     widgets/KoFillConfigWidget.cpp
     widgets/KisLayerStyleAngleSelector.cpp
     widgets/KisMemoryReportButton.cpp
+    widgets/KisDitherWidget.cpp
 
     KisPaletteEditor.cpp
     dialogs/KisDlgPaletteEditor.cpp
@@ -279,6 +280,8 @@ set(kritaui_LIB_SRCS
 
     utils/kis_document_aware_spin_box_unit_manager.cpp
     utils/KisSpinBoxSplineUnitConverter.cpp
+    utils/KisClipboardUtil.cpp
+    utils/KisDitherUtil.cpp
 
     input/kis_input_manager.cpp
     input/kis_input_manager_p.cpp
@@ -301,6 +304,7 @@ set(kritaui_LIB_SRCS
     input/kis_select_layer_action.cpp
     input/KisQtWidgetsTweaker.cpp
     input/KisInputActionGroup.cpp
+    input/kis_zoom_and_rotate_action.cpp
 
     operations/kis_operation.cpp
     operations/kis_operation_configuration.cpp
@@ -309,7 +313,7 @@ set(kritaui_LIB_SRCS
     operations/kis_operation_ui_widget.cpp
     operations/kis_filter_selection_operation.cpp
     actions/kis_selection_action_factories.cpp
-    actions/KisPasteActionFactory.cpp
+    actions/KisPasteActionFactories.cpp
     actions/KisTransformToolActivationCommand.cpp
     input/kis_touch_shortcut.cpp
     kis_document_undo_store.cpp
@@ -345,7 +349,6 @@ set(kritaui_LIB_SRCS
     KisCloneDocumentStroke.cpp
     kis_node_view_color_scheme.cpp
     KisImportExportFilter.cpp
-    KisFilterEntry.cpp
     KisImportExportManager.cpp
     KisImportExportUtils.cpp
     kis_async_action_feedback.cpp
@@ -361,6 +364,7 @@ set(kritaui_LIB_SRCS
     KisTemplateTree.cpp
     KisUndoActionsUpdateManager.cpp
     KisView.cpp
+    KisCanvasWindow.cpp
     KisImportExportErrorCode.cpp
     KisImportExportAdditionalChecks.cpp
 
@@ -395,6 +399,8 @@ set(kritaui_LIB_SRCS
     flake/KisReferenceImagesLayer.cpp
     flake/KisReferenceImagesLayer.h
     KisMouseClickEater.cpp
+
+    KisDecorationsWrapperLayer.cpp
 )
 
 if(WIN32)
@@ -462,6 +468,7 @@ endif()
 ki18n_wrap_ui(kritaui_LIB_SRCS
     widgets/KoFillConfigWidget.ui
     widgets/KoStrokeConfigWidget.ui
+    widgets/KisDitherWidget.ui
     forms/wdgdlgpngimport.ui
     forms/wdgfullscreensettings.ui
     forms/wdgautogradient.ui
@@ -569,8 +576,7 @@ endif()
 
 if (NOT WIN32 AND NOT APPLE)
   target_link_libraries(kritaui ${X11_X11_LIB}
-                                ${X11_Xinput_LIB}
-                                ${XCB_LIBRARIES})
+                                ${X11_Xinput_LIB})
 endif()
 
 if(APPLE)

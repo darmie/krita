@@ -34,9 +34,7 @@
 #include <QMessageBox>
 #include <QThread>
 
-#if QT_VERSION >= 0x050900
 #include <QOperatingSystemVersion>
-#endif
 
 #include <time.h>
 
@@ -160,9 +158,7 @@ extern "C" int main(int argc, char **argv)
     QCoreApplication::setAttribute(Qt::AA_DontCreateNativeWidgetSiblings, true);
     QCoreApplication::setAttribute(Qt::AA_UseHighDpiPixmaps, true);
 
-#if QT_VERSION >= 0x050900
     QCoreApplication::setAttribute(Qt::AA_DisableShaderDiskCache, true);
-#endif
 
 #ifdef HAVE_HIGH_DPI_SCALE_FACTOR_ROUNDING_POLICY
     // This rounding policy depends on a series of patches to Qt related to
@@ -218,24 +214,17 @@ extern "C" int main(int argc, char **argv)
 
         logUsage = kritarc.value("LogUsage", true).toBool();
 
+#ifdef Q_OS_WIN
+        const QString preferredRendererString = kritarc.value("OpenGLRenderer", "angle").toString();
+#else
         const QString preferredRendererString = kritarc.value("OpenGLRenderer", "auto").toString();
+#endif
         preferredRenderer = KisOpenGL::convertConfigToOpenGLRenderer(preferredRendererString);
 
-#ifdef Q_OS_WIN
-        // Force ANGLE to use Direct3D11. D3D9 doesn't support OpenGL ES 3 and WARP
-        //  might get weird crashes atm.
-        qputenv("QT_ANGLE_PLATFORM", "d3d11");
-#endif
+        const KisOpenGL::RendererConfig config =
+            KisOpenGL::selectSurfaceConfig(preferredRenderer, rootSurfaceFormat, enableOpenGLDebug);
 
-        const QSurfaceFormat format =
-            KisOpenGL::selectSurfaceFormat(preferredRenderer, rootSurfaceFormat, enableOpenGLDebug);
-
-        if (format.renderableType() == QSurfaceFormat::OpenGLES) {
-            QCoreApplication::setAttribute(Qt::AA_UseOpenGLES, true);
-        } else {
-            QCoreApplication::setAttribute(Qt::AA_UseDesktopOpenGL, true);
-        }
-        KisOpenGL::setDefaultSurfaceFormat(format);
+        KisOpenGL::setDefaultSurfaceConfig(config);
         KisOpenGL::setDebugSynchronous(openGLDebugSynchronous);
 
 #ifdef Q_OS_WIN
@@ -450,7 +439,6 @@ extern "C" int main(int argc, char **argv)
 #if defined Q_OS_WIN
     KisConfig cfg(false);
     bool supportedWindowsVersion = true;
-#if QT_VERSION >= 0x050900
     QOperatingSystemVersion osVersion = QOperatingSystemVersion::current();
     if (osVersion.type() == QOperatingSystemVersion::Windows) {
         if (osVersion.majorVersion() >= QOperatingSystemVersion::Windows7.majorVersion()) {
@@ -469,7 +457,6 @@ extern "C" int main(int argc, char **argv)
             }
         }
     }
-#endif
 #ifndef USE_QT_TABLET_WINDOWS
     {
         if (cfg.useWin8PointerInput() && !KisTabletSupportWin8::isAvailable()) {
@@ -525,9 +512,7 @@ extern "C" int main(int argc, char **argv)
         return 1;
     }
 
-#if QT_VERSION >= 0x050700
     app.setAttribute(Qt::AA_CompressHighFrequencyEvents, false);
-#endif
 
     // Set up remote arguments.
     QObject::connect(&app, SIGNAL(messageReceived(QByteArray,QObject*)),

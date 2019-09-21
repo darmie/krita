@@ -231,7 +231,8 @@ void SvgTextEditor::switchTextEditorTab(bool convertData)
 
         //then connect the cursor change to the checkformat();
         connect(m_textEditorWidget.richTextEdit, SIGNAL(cursorPositionChanged()), this, SLOT(checkFormat()));
-
+        connect(m_textEditorWidget.richTextEdit, SIGNAL(textChanged()), this, SLOT(slotFixUpEmptyTextBlock()));
+        checkFormat();
 
         if (m_shape && convertData) {
             QTextDocument *doc = m_textEditorWidget.richTextEdit->document();
@@ -324,6 +325,33 @@ void SvgTextEditor::checkFormat()
         QDoubleSpinBox* spnLetterSpacing = qobject_cast<QDoubleSpinBox*>(qobject_cast<QWidgetAction*>(actionCollection()->action("svg_letter_spacing"))->defaultWidget());
         KisSignalsBlocker b(spnLetterSpacing);
         spnLetterSpacing->setValue(format.fontLetterSpacing());
+    }
+}
+
+void SvgTextEditor::slotFixUpEmptyTextBlock()
+{
+    if (m_textEditorWidget.richTextEdit->document()->isEmpty()) {
+        QTextCursor cursor = m_textEditorWidget.richTextEdit->textCursor();
+        QTextCharFormat format = cursor.blockCharFormat();
+
+        {
+            FontSizeAction *fontSizeAction = qobject_cast<FontSizeAction*>(actionCollection()->action("svg_font_size"));
+            KisFontComboBoxes* fontComboBox = qobject_cast<KisFontComboBoxes*>(qobject_cast<QWidgetAction*>(actionCollection()->action("svg_font"))->defaultWidget());
+            format.setFont(fontComboBox->currentFont(fontSizeAction->fontSize()));
+        }
+
+        {
+            KoColorPopupAction *fgColorPopup = qobject_cast<KoColorPopupAction*>(actionCollection()->action("svg_format_textcolor"));
+            format.setForeground(fgColorPopup->currentColor());
+        }
+
+        {
+            //KoColorPopupAction *bgColorPopup = qobject_cast<KoColorPopupAction*>(actionCollection()->action("svg_background_color"));
+            //format.setBackground(bgColorPopup->currentColor());
+        }
+
+        KisSignalsBlocker b(m_textEditorWidget.richTextEdit);
+        cursor.setBlockCharFormat(format);
     }
 }
 
@@ -985,6 +1013,10 @@ void SvgTextEditor::applySettings()
 
     QColor background = cfg.readEntry("colorEditorBackground", qApp->palette().background().color());
     palette.setBrush(QPalette::Active, QPalette::Background, QBrush(background));
+    m_textEditorWidget.richTextEdit->setStyleSheet(QString("background-color:%1").arg(background.name()));
+    m_textEditorWidget.svgStylesEdit->setStyleSheet(QString("background-color:%1").arg(background.name()));
+    m_textEditorWidget.svgTextEdit->setStyleSheet(QString("background-color:%1").arg(background.name()));
+
     QColor foreground = cfg.readEntry("colorEditorForeground", qApp->palette().text().color());
     palette.setBrush(QPalette::Active, QPalette::Text, QBrush(foreground));
 
@@ -994,7 +1026,15 @@ void SvgTextEditor::applySettings()
     for (int i=0; i<selectedWritingSystems.size(); i++) {
         writingSystems.append((QFontDatabase::WritingSystem)QString(selectedWritingSystems.at(i)).toInt());
     }
-    qobject_cast<KisFontComboBoxes*>(qobject_cast<QWidgetAction*>(actionCollection()->action("svg_font"))->defaultWidget())->refillComboBox(writingSystems);
+
+    {
+        FontSizeAction *fontSizeAction = qobject_cast<FontSizeAction*>(actionCollection()->action("svg_font_size"));
+        KisFontComboBoxes* fontComboBox = qobject_cast<KisFontComboBoxes*>(qobject_cast<QWidgetAction*>(actionCollection()->action("svg_font"))->defaultWidget());
+
+        const QFont oldFont = fontComboBox->currentFont(fontSizeAction->fontSize());
+        fontComboBox->refillComboBox(writingSystems);
+        fontComboBox->setCurrentFont(oldFont);
+    }
 
     m_page->setUpdatesEnabled(true);
 }
@@ -1144,7 +1184,7 @@ void SvgTextEditor::createActions()
     spnLineHeight->setToolTip(i18n("Line height"));
     spnLineHeight->setRange(0.0, 1000.0);
     spnLineHeight->setSingleStep(10.0);
-    spnLineHeight->setSuffix("%");
+    spnLineHeight->setSuffix(i18n("%"));
     connect(spnLineHeight, SIGNAL(valueChanged(double)), SLOT(setLineHeight(double)));
     lineHeight->setDefaultWidget(spnLineHeight);
     actionCollection()->addAction("svg_line_height", lineHeight);

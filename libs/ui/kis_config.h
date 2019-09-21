@@ -51,6 +51,9 @@ public:
     bool disableTouchOnCanvas(bool defaultValue = false) const;
     void setDisableTouchOnCanvas(bool value) const;
 
+    bool disableTouchRotation(bool defaultValue = false) const;
+    void setDisableTouchRotation(bool value) const;
+
     bool useProjections(bool defaultValue = false) const;
     void setUseProjections(bool useProj) const;
 
@@ -178,7 +181,7 @@ public:
     void setRenderIntent(qint32 monitorRenderIntent) const;
 
     bool useOpenGL(bool defaultValue = false) const;
-    void setUseOpenGL(bool useOpenGL) const;
+    void disableOpenGL() const;
 
     int openGLFilteringMode(bool defaultValue = false) const;
     void setOpenGLFilteringMode(int filteringMode);
@@ -438,7 +441,7 @@ public:
     void setDefaultBackgroundOpacity(quint8 value);
 
     QColor defaultBackgroundColor(bool defaultValue = false) const;
-    void setDefaultBackgroundColor(QColor value);
+    void setDefaultBackgroundColor(const QColor &value);
 
     enum BackgroundStyle {
         RASTER_LAYER = 0,

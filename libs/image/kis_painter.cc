@@ -1400,13 +1400,6 @@ void KisPainter::Private::fillPainterPathImpl(const QPainterPath& path, const QR
     switch (fillStyle) {
     default:
         Q_FALLTHROUGH();
-    case FillStyleGradient:
-        // Currently unsupported
-        Q_FALLTHROUGH();
-    case FillStyleStrokes:
-        // Currently unsupported
-        warnImage << "Unknown or unsupported fill style in fillPolygon\n";
-        Q_FALLTHROUGH();
     case FillStyleForegroundColor:
         fillPainter->fillRect(fillRect, q->paintColor(), OPACITY_OPAQUE_U8);
         break;
@@ -1469,11 +1462,13 @@ void KisPainter::drawPainterPath(const QPainterPath& path, const QPen& pen)
     drawPainterPath(path, pen, QRect());
 }
 
-void KisPainter::drawPainterPath(const QPainterPath& path, const QPen& pen, const QRect &requestedRect)
+void KisPainter::drawPainterPath(const QPainterPath& path, const QPen& _pen, const QRect &requestedRect)
 {
     // we are drawing mask, it has to be white
     // color of the path is given by paintColor()
-    Q_ASSERT(pen.color() == Qt::white);
+    KIS_SAFE_ASSERT_RECOVER_NOOP(_pen.color() == Qt::white);
+    QPen pen(_pen);
+    pen.setColor(Qt::white);
 
     if (!d->fillPainter) {
         d->polygon = d->device->createCompositionSourceDevice();

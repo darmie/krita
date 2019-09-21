@@ -61,6 +61,7 @@
 #include <QScreen>
 #include <QAction>
 #include <QWindow>
+#include <QScrollArea>
 
 #include <kactioncollection.h>
 #include <kactionmenu.h>
@@ -109,7 +110,6 @@
 #include "dialogs/kis_about_application.h"
 #include "dialogs/kis_delayed_save_dialog.h"
 #include "dialogs/kis_dlg_preferences.h"
-#include "kis_action.h"
 #include "kis_action_manager.h"
 #include "KisApplication.h"
 #include "kis_canvas2.h"
@@ -146,6 +146,9 @@
 #include "KisWelcomePageWidget.h"
 #include <KritaVersionWrapper.h>
 #include <kritaversion.h>
+#include "KisCanvasWindow.h"
+#include "kis_action.h"
+
 #include <mutex>
 
 class ToolDockerFactory : public KoDockFactoryBase
@@ -185,7 +188,13 @@ public:
     {
         if (id.isNull()) this->id = QUuid::createUuid();
 
-        widgetStack->addWidget(welcomePage);
+        welcomeScroller = new QScrollArea();
+        welcomeScroller->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+        welcomeScroller->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+        welcomeScroller->setWidget(welcomePage);
+        welcomeScroller->setWidgetResizable(true);
+
+        widgetStack->addWidget(welcomeScroller);
         widgetStack->addWidget(mdiArea);
         mdiArea->setTabsMovable(true);
         mdiArea->setActivationOrder(QMdiArea::ActivationHistoryOrder);
@@ -229,6 +238,7 @@ public:
     KisAction *mdiPreviousWindow {0};
     KisAction *toggleDockers {0};
     KisAction *toggleDockerTitleBars {0};
+    KisAction *toggleDetachCanvas {0};
     KisAction *fullScreenMode {0};
     KisAction *showSessionManager {0};
 
@@ -256,6 +266,7 @@ public:
 
     Digikam::ThemeManager *themeManager {0};
 
+    QScrollArea *welcomeScroller {0};
     KisWelcomePageWidget *welcomePage {0};
 
 
@@ -265,6 +276,7 @@ public:
     QMdiSubWindow *activeSubWindow  {0};
     QSignalMapper *windowMapper;
     QSignalMapper *documentMapper;
+    KisCanvasWindow *canvasWindow {0};
 
     QByteArray lastExportedFormat;
     QScopedPointer<KisSignalCompressorWithParam<int> > tabSwitchCompressor;
@@ -393,6 +405,9 @@ KisMainWindow::KisMainWindow(QUuid uuid)
     connect(d->windowMapper, SIGNAL(mapped(QWidget*)), this, SLOT(setActiveSubWindow(QWidget*)));
     connect(d->documentMapper, SIGNAL(mapped(QObject*)), this, SLOT(newView(QObject*)));
 
+    d->canvasWindow = new KisCanvasWindow(this);
+    actionCollection()->addAssociatedWidget(d->canvasWindow);
+
     createActions();
 
     // the welcome screen needs to grab actions...so make sure this line goes after the createAction() so they exist
@@ -472,6 +487,7 @@ KisMainWindow::KisMainWindow(QUuid uuid)
     setXMLFile(":/kxmlgui5/krita4.xmlgui");
 
     guiFactory()->addClient(this);
+    connect(guiFactory(), SIGNAL(makingChanges(bool)), SLOT(slotXmlGuiMakingChanges(bool)));
 
     // Create and plug toolbar list for Settings menu
     QList<QAction *> toolbarList;
@@ -716,6 +732,34 @@ void KisMainWindow::slotThemeChanged()
     emit themeChanged();
 }
 
+bool KisMainWindow::canvasDetached() const
+{
+    return centralWidget() != d->widgetStack;
+}
+
+void KisMainWindow::setCanvasDetached(bool detach)
+{
+    if (detach == canvasDetached()) return;
+
+    QWidget *outgoingWidget = centralWidget() ? takeCentralWidget() : nullptr;
+    QWidget *incomingWidget = d->canvasWindow->swapMainWidget(outgoingWidget);
+
+    if (incomingWidget) {
+        setCentralWidget(incomingWidget);
+    }
+
+    if (detach) {
+        d->canvasWindow->show();
+    } else {
+        d->canvasWindow->hide();
+    }
+}
+
+QWidget * KisMainWindow::canvasWindow() const
+{
+    return d->canvasWindow;
+}
+
 void KisMainWindow::updateReloadFileAction(KisDocument *doc)
 {
     Q_UNUSED(doc);
@@ -785,15 +829,21 @@ QList<QUrl> KisMainWindow::recentFilesUrls()
 void KisMainWindow::clearRecentFiles()
 {
     d->recentFiles->clear();
+    d->welcomePage->slotClearRecentFiles();
 }
 
+void KisMainWindow::removeRecentUrl(const QUrl &url)
+{
+    d->recentFiles->removeUrl(url);
+    KSharedConfigPtr config =  KSharedConfig::openConfig();
+    d->recentFiles->saveEntries(config->group("RecentFiles"));
+    config->sync();
+}
 
 void KisMainWindow::reloadRecentFileList()
 {
     d->recentFiles->loadEntries(KSharedConfig::openConfig()->group("RecentFiles"));
 }
-
-
 
 void KisMainWindow::updateCaption()
 {
@@ -943,7 +993,7 @@ KisView* KisMainWindow::addViewAndNotifyLoadingCompleted(KisDocument *document)
 {
     showWelcomeScreen(false); // see workaround in function header
 
-    KisView *view = KisPart::instance()->createView(document, resourceManager(), actionCollection(), this);
+    KisView *view = KisPart::instance()->createView(document, d->viewManager, this);
     addView(view);
 
     emit guiLoadingFinished();
@@ -1089,7 +1139,7 @@ bool KisMainWindow::saveDocument(KisDocument *document, bool saveas, bool isExpo
         // dialog and then tries to just plain Save ---
 
         // suggest a different filename extension (yes, we fortunately don't all live in a world of magic :))
-        QString suggestedFilename = QFileInfo(suggestedURL.toLocalFile()).baseName();
+        QString suggestedFilename = QFileInfo(suggestedURL.toLocalFile()).completeBaseName();
 
         if (!suggestedFilename.isEmpty()) {  // ".kra" looks strange for a name
             suggestedFilename = suggestedFilename + "." + KisMimeDatabase::suffixesForMimeType(KIS_MIME_TYPE).first();
@@ -1113,12 +1163,12 @@ bool KisMainWindow::saveDocument(KisDocument *document, bool saveas, bool isExpo
 
         //qDebug() << ">>>>>" << isExporting << d->lastExportLocation << d->lastExportedFormat << QString::fromLatin1(document->mimeType());
 
-        if (isExporting && !d->lastExportLocation.isEmpty()) {
+        if (isExporting && !d->lastExportLocation.isEmpty() && !d->lastExportLocation.contains(QDir::tempPath())) {
 
             // Use the location where we last exported to, if it's set, as the opening location for the file dialog
             QString proposedPath = QFileInfo(d->lastExportLocation).absolutePath();
             // If the document doesn't have a filename yet, use the title
-            QString proposedFileName = suggestedURL.isEmpty() ? document->documentInfo()->aboutInfo("title") :  QFileInfo(suggestedURL.toLocalFile()).baseName();
+            QString proposedFileName = suggestedURL.isEmpty() ? document->documentInfo()->aboutInfo("title") :  QFileInfo(suggestedURL.toLocalFile()).completeBaseName();
             // Use the last mimetype we exported to by default
             QString proposedMimeType =  d->lastExportedFormat.isEmpty() ? "" : d->lastExportedFormat;
             QString proposedExtension = KisMimeDatabase::suffixesForMimeType(proposedMimeType).first().remove("*,");
@@ -1165,7 +1215,7 @@ bool KisMainWindow::saveDocument(KisDocument *document, bool saveas, bool isExpo
         if (document->documentInfo()->aboutInfo("title") == i18n("Unnamed")) {
             QString fn = newURL.toLocalFile();
             QFileInfo info(fn);
-            document->documentInfo()->setAboutInfo("title", info.baseName());
+            document->documentInfo()->setAboutInfo("title", info.completeBaseName());
         }
 
         QByteArray outputFormat = nativeFormat;
@@ -1179,9 +1229,9 @@ bool KisMainWindow::saveDocument(KisDocument *document, bool saveas, bool isExpo
         }
         else {
             QString path = QFileInfo(d->lastExportLocation).absolutePath();
-            QString filename = QFileInfo(document->url().toLocalFile()).baseName();
+            QString filename = QFileInfo(document->url().toLocalFile()).completeBaseName();
             justChangingFilterOptions = (QFileInfo(newURL.toLocalFile()).absolutePath() == path)
-                    && (QFileInfo(newURL.toLocalFile()).baseName() == filename)
+                    && (QFileInfo(newURL.toLocalFile()).completeBaseName() == filename)
                     && (outputFormat == d->lastExportedFormat);
         }
 
@@ -1263,6 +1313,11 @@ void KisMainWindow::redo()
 
 void KisMainWindow::closeEvent(QCloseEvent *e)
 {
+    if (hackIsSaving()) {
+        e->setAccepted(false);
+        return;
+    }
+
     if (!KisPart::instance()->closingSession()) {
         QAction *action= d->viewManager->actionCollection()->action("view_show_canvas_only");
         if ((action) && (action->isChecked())) {
@@ -1287,6 +1342,7 @@ void KisMainWindow::closeEvent(QCloseEvent *e)
     if (childrenList.isEmpty()) {
         d->deferredClosingEvent = e;
         saveWindowState(true);
+        d->canvasWindow->close();
     } else {
         e->setAccepted(false);
     }
@@ -1426,8 +1482,8 @@ void KisMainWindow::slotFileNew()
                                            i18n("Unnamed"));
 
     item.icon = "document-new";
-
-    startupWidget->addCustomDocumentWidget(item.widget, item.title, item.icon);
+    item.title = i18n("Custom Document");
+    startupWidget->addCustomDocumentWidget(item.widget, item.title, "Custom Document", item.icon);
 
     QSize sz = KisClipboard::instance()->clipSize();
     if (sz.isValid() && sz.width() != 0 && sz.height() != 0) {
@@ -1447,7 +1503,7 @@ void KisMainWindow::slotFileNew()
     item.title = i18n("Create from Clipboard");
     item.icon = "tab-new";
 
-    startupWidget->addCustomDocumentWidget(item.widget, item.title, item.icon);
+    startupWidget->addCustomDocumentWidget(item.widget, item.title, "Create from ClipBoard", item.icon);
 
     // calls deleteLater
     connect(startupWidget, SIGNAL(documentSelected(KisDocument*)), KisPart::instance(), SLOT(startCustomDocument(KisDocument*)));
@@ -1668,6 +1724,12 @@ bool KisMainWindow::slotFileCloseAll()
 
 void KisMainWindow::slotFileQuit()
 {
+    // Do not close while KisMainWindow has the savingEntryMutex locked, bug409395.
+    // After the background saving job is initiated, KisDocument blocks closing
+    // while it saves itself.
+    if (hackIsSaving()) {
+        return;
+    }
     KisPart::instance()->closeSession();
 }
 
@@ -2454,7 +2516,7 @@ void KisMainWindow::applyDefaultSettings(QPrinter &printer) {
     QString title = d->activeView->document()->documentInfo()->aboutInfo("title");
     if (title.isEmpty()) {
         QFileInfo info(d->activeView->document()->url().fileName());
-        title = info.baseName();
+        title = info.completeBaseName();
     }
 
     if (title.isEmpty()) {
@@ -2539,6 +2601,11 @@ void KisMainWindow::createActions()
     KisConfig(true).showDockers(true);
     d->toggleDockers->setChecked(true);
     connect(d->toggleDockers, SIGNAL(toggled(bool)), SLOT(toggleDockersVisibility(bool)));
+
+    d->toggleDetachCanvas = actionManager->createAction("view_detached_canvas");
+    d->toggleDetachCanvas->setChecked(false);
+    connect(d->toggleDetachCanvas, SIGNAL(toggled(bool)), SLOT(setCanvasDetached(bool)));
+    setCanvasDetached(false);
 
     actionCollection()->addAction("settings_dockers_menu", d->dockWidgetMenu);
     actionCollection()->addAction("window", d->windowMenu);
@@ -2645,6 +2712,13 @@ void KisMainWindow::windowScreenChanged(QScreen *screen)
     d->screenConnectionsStore.clear();
     d->screenConnectionsStore.addConnection(screen, SIGNAL(physicalDotsPerInchChanged(qreal)),
                                             this, SIGNAL(screenChanged()));
+}
+
+void KisMainWindow::slotXmlGuiMakingChanges(bool finished)
+{
+    if (finished) {
+        subWindowActivated();
+    }
 }
 
 

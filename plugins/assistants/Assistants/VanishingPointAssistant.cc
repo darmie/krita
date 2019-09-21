@@ -6,7 +6,8 @@
  *
  *  This library is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU Lesser General Public License as published by
- *  the Free Software Foundation; version 2.1 of the License.
+ *  the Free Software Foundation; version 2 of the License, or
+ *  (at your option) any later version.
  *
  *  This library is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -100,9 +101,7 @@ void VanishingPointAssistant::drawAssistant(QPainter& gc, const QRectF& updateRe
 
     gc.save();
     gc.resetTransform();
-    QPointF delta(0,0);
     QPointF mousePos(0,0);
-    QPointF endPoint(0,0);//this is the final point that the line is being extended to, we seek it just outside the view port//
     
     if (canvas){
         //simplest, cheapest way to get the mouse-position//
@@ -194,7 +193,7 @@ void VanishingPointAssistant::drawAssistant(QPainter& gc, const QRectF& updateRe
 
     // draw references guide for vanishing points at specified density
     // this is shown as part of the preview, so don't show if preview is off
-    if( canvas->paintingAssistantsDecoration()->outlineVisibility() && this->isSnappingActive() ) {
+    if ( (assistantVisible && canvas->paintingAssistantsDecoration()->outlineVisibility()) && this->isSnappingActive() ) {
 
         // cycle through degrees from 0 to 180. We are doing an infinite line, so we don't need to go 360
         QTransform initialTransform = converter->documentToWidgetTransform();
@@ -253,7 +252,7 @@ void VanishingPointAssistant::drawCache(QPainter& gc, const KisCoordinatesConver
     drawPath(gc, path, isSnappingActive());
 }
 
-QPointF VanishingPointAssistant::buttonPosition() const
+QPointF VanishingPointAssistant::getEditorPosition() const
 {
     return (*handles()[0]);
 }

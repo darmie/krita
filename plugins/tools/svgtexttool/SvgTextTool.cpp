@@ -141,7 +141,11 @@ QWidget *SvgTextTool::createOptionWidget()
         m_defPointSize->addItem(QString::number(size)+" pt");
     }
     int storedSize = m_configGroup.readEntry<int>("defaultSize", QApplication::font().pointSize());
-    m_defPointSize->setCurrentIndex(QFontDatabase::standardSizes().indexOf(storedSize));
+    int sizeIndex = 0;
+    if (QFontDatabase::standardSizes().contains(storedSize)) {
+        sizeIndex = QFontDatabase::standardSizes().indexOf(storedSize);
+    }
+    m_defPointSize->setCurrentIndex(sizeIndex);
 
     int checkedAlignment = m_configGroup.readEntry<int>("defaultAlignment", 0);
 
@@ -225,6 +229,7 @@ void SvgTextTool::showEditor()
 
     if (!m_editor) {
         m_editor = new SvgTextEditor(QApplication::activeWindow());
+        m_editor->setWindowTitle(i18nc("@title:window", "Krita - Edit Text"));
         m_editor->setWindowModality(Qt::ApplicationModal);
         m_editor->setAttribute( Qt::WA_QuitOnClose, false );
 
@@ -253,7 +258,8 @@ void SvgTextTool::slotTextEditorClosed()
 QString SvgTextTool::generateDefs()
 {
     QString font = m_defFont->currentFont().family();
-    QString size = QString::number(QFontDatabase::standardSizes().at(m_defPointSize->currentIndex()));
+    QString size = QString::number(QFontDatabase::standardSizes().at(m_defPointSize->currentIndex() > -1 ? m_defPointSize->currentIndex() : 0));
+
     QString textAnchor = "middle";
     if (m_defAlignment->button(0)->isChecked()) {
         textAnchor = "start";
@@ -271,7 +277,7 @@ void SvgTextTool::storeDefaults()
 {
     m_configGroup = KSharedConfig::openConfig()->group(toolId());
     m_configGroup.writeEntry("defaultFont", m_defFont->currentFont().family());
-    m_configGroup.writeEntry("defaultSize", QFontDatabase::standardSizes().at(m_defPointSize->currentIndex()));
+    m_configGroup.writeEntry("defaultSize", QFontDatabase::standardSizes().at(m_defPointSize->currentIndex() > -1 ? m_defPointSize->currentIndex() : 0));
     m_configGroup.writeEntry("defaultAlignment", m_defAlignment->checkedId());
 }
 
@@ -366,7 +372,7 @@ void SvgTextTool::mouseReleaseEvent(KoPointerEvent *event)
 
             //The following show only happen when we're creating preformatted text. If we're making
             //Word-wrapped text, it should take the rectangle unmodified.
-            int size = QFontDatabase::standardSizes().at(m_defPointSize->currentIndex());
+            int size = QFontDatabase::standardSizes().at(m_defPointSize->currentIndex() > -1 ? m_defPointSize->currentIndex() : 0);
             QFont font = m_defFont->currentFont();
             font.setPointSize(size);
             rectangle.setTop(rectangle.top()+QFontMetrics(font).lineSpacing());

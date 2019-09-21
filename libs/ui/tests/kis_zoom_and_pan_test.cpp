@@ -60,7 +60,7 @@ public:
         m_doc->setCurrentImage(m_image);
 
         m_mainWindow = KisPart::instance()->createMainWindow();
-        m_view = new KisView(m_doc, m_mainWindow->resourceManager(), m_mainWindow->actionCollection(), m_mainWindow);
+        m_view = new KisView(m_doc, m_mainWindow->viewManager(), m_mainWindow);
 
         m_image->refreshGraph();
 
@@ -522,7 +522,7 @@ void KisZoomAndPanTest::testZoomOnBorderZoomLevels()
     ZoomAndPanTester t;
     initializeViewport(t, false, false, false);
 
-    QPoint widgetPoint(100,100);
+//    QPoint widgetPoint(100,100);
 
     warnKrita << "WARNING: testZoomOnBorderZoomLevels() is disabled due to some changes in KoZoomMode::minimum/maximumZoom()";
     return;

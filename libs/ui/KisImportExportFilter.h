@@ -104,6 +104,7 @@ public:
     void setRealFilename(const QString &filename);
     void setMimeType(const QString &mime);
     void setUpdater(QPointer<KoUpdater> updater);
+    QPointer<KoUpdater> updater();
 
     /**
      * The filter chain calls this method to perform the actual conversion.
@@ -156,6 +157,9 @@ public:
     /// Override and return false for the filters that use a library that cannot handle file handles, only file names.
     virtual bool supportsIO() const { return true; }
 
+    /// Verify whether the given file is correct and readable
+    virtual QString verify(const QString &fileName) const;
+
 protected:
     /**
      * This is the constructor your filter has to call, obviously.
@@ -171,6 +175,8 @@ protected:
     virtual void initializeCapabilities();
     void addCapability(KisExportCheckBase *capability);
     void addSupportedColorModels(QList<QPair<KoID, KoID> > supportedColorModels, const QString &name, KisExportCheckBase::Level level = KisExportCheckBase::PARTIALLY);
+
+    QString verifyZiPBasedFiles(const QString &fileName, const QStringList &filesToCheck) const;
 
 private:
 

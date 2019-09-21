@@ -133,8 +133,6 @@ KisToolTransformConfigWidget::KisToolTransformConfigWidget(TransformTransactionP
     translateYBox->setRange(-10000, 10000);
 
 
-    scaleXBox->setSuffix("%");
-    scaleYBox->setSuffix("%");
     scaleXBox->setRange(-10000, 10000);
     scaleYBox->setRange(-10000, 10000);
     scaleXBox->setValue(100.0);
@@ -228,7 +226,7 @@ KisToolTransformConfigWidget::KisToolTransformConfigWidget(TransformTransactionP
 
     buidupModeComboBox->setCurrentIndex(0); // set to build-up mode by default
     connect(buidupModeComboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(liquifyBuildUpChanged(int)));
-    buidupModeComboBox->setToolTip(i18nc("@info:tooltip", "Switch between Build Up and Wash mode of painting. Build Up mode adds deformations one on top of the other without any limits. Wash mode gradually deforms the piece to the selected deformation level."));
+    buidupModeComboBox->setToolTip("<p>" + i18nc("@info:tooltip", "Switch between Build Up and Wash mode of painting. Build Up mode adds deformations one on top of the other without any limits. Wash mode gradually deforms the piece to the selected deformation level.") + "</p>");
 
     liquifySpacingSlider->setRange(0.0, 3.0, 2);
     liquifySizeSlider->setExponentRatio(3);
@@ -1165,40 +1163,9 @@ void KisToolTransformConfigWidget::slotSetWarpDensity(int value)
 
 void KisToolTransformConfigWidget::setDefaultWarpPoints(int pointsPerLine)
 {
-    if (pointsPerLine < 0) {
-        pointsPerLine = DEFAULT_POINTS_PER_LINE;
-    }
-
-    int nbPoints = pointsPerLine * pointsPerLine;
-    QVector<QPointF> origPoints(nbPoints);
-    QVector<QPointF> transfPoints(nbPoints);
-    qreal gridSpaceX, gridSpaceY;
-
-    if (nbPoints == 1) {
-        //there is actually no grid
-        origPoints[0] = m_transaction->originalCenterGeometric();
-        transfPoints[0] = m_transaction->originalCenterGeometric();
-    }
-    else if (nbPoints > 1) {
-        gridSpaceX = m_transaction->originalRect().width() / (pointsPerLine - 1);
-        gridSpaceY = m_transaction->originalRect().height() / (pointsPerLine - 1);
-        double y = m_transaction->originalRect().top();
-        for (int i = 0; i < pointsPerLine; ++i) {
-            double x = m_transaction->originalRect().left();
-            for (int j = 0 ; j < pointsPerLine; ++j) {
-                origPoints[i * pointsPerLine + j] = QPointF(x, y);
-                transfPoints[i * pointsPerLine + j] = QPointF(x, y);
-                x += gridSpaceX;
-            }
-            y += gridSpaceY;
-        }
-    }
-
     ToolTransformArgs *config = m_transaction->currentConfig();
 
-    config->setDefaultPoints(nbPoints > 0);
-    config->setPoints(origPoints, transfPoints);
-
+    KisTransformUtils::setDefaultWarpPoints(pointsPerLine, m_transaction, config);
     notifyConfigChanged();
 }
 

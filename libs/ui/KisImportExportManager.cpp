@@ -464,6 +464,12 @@ bool KisImportExportManager::askUserAboutExportConfiguration(
 
     if (QThread::currentThread() == qApp->thread()) {
         wdg = filter->createConfigurationWidget(0, from, to);
+
+        KisMainWindow *kisMain = KisPart::instance()->currentMainwindow();
+        if (wdg && kisMain) {
+            KisViewManager *manager = kisMain->viewManager();
+            wdg->setView(manager);
+        }
     }
 
     // Extra checks that cannot be done by the checker, because the checker only has access to the image.
@@ -483,7 +489,7 @@ bool KisImportExportManager::askUserAboutExportConfiguration(
     if (!batchMode && !errors.isEmpty()) {
         QString error =  "<html><body><p><b>"
                 + i18n("Error: cannot save this image as a %1.", mimeUserDescription)
-                + "</b> Reasons:</p>"
+                + "</b> " + i18n("Reasons:") + "</p>"
                 + "<p/><ul>";
         Q_FOREACH(const QString &w, errors) {
             error += "\n<li>" + w + "</li>";
@@ -528,10 +534,10 @@ bool KisImportExportManager::askUserAboutExportConfiguration(
                     + i18n("You will lose information when saving this image as a %1.", mimeUserDescription);
 
             if (warnings.size() == 1) {
-                warning += "</b> Reason:</p>";
+                warning += "</b> " + i18n("Reason:") + "</p>";
             }
             else {
-                warning += "</b> Reasons:</p>";
+                warning += "</b> " + i18n("Reasons:") + "</p>";
             }
             warning += "<p/><ul>";
 
@@ -680,6 +686,15 @@ KisImportExportErrorCode KisImportExportManager::doExportImpl(const QString &loc
 #endif
         }
     }
+
+    // Do some minimal verification
+    QString verificationResult = filter->verify(location);
+    if (!verificationResult.isEmpty()) {
+        status = KisImportExportErrorCode(ImportExportCodes::ErrorWhileWriting);
+        m_document->setErrorMessage(verificationResult);
+    }
+
+
     return status;
 
 }
